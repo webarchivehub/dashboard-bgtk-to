@@ -41,6 +41,22 @@ DISTRICTS = [
     "Muna", "Muna Barat", "Wakatobi", "Kota Baubau", "Kota Kendari",
     "Belum dipetakan",
 ]
+# Pemetaan khusus sekolah yang sudah dikonfirmasi berada di Kabupaten Bombana.
+# Alias digunakan agar variasi nama pada nama file/lembar Excel tetap dikenali.
+SCHOOL_DISTRICT_ALIASES = {
+    "Bombana": [
+        "smas al wahdah bombana",
+        "smas al wahdah",
+        "smas islam nusantara bombana",
+        "smas nusantara bombana",
+        "smas matabundu bombana",
+        "smas matabundu",
+        "smas tongkoseng bombana",
+        "smas tongkoseng",
+        "smas tontonunu bombana",
+        "smas tontonunu",
+    ],
+}
 ALIASES = {
     "Konawe Kepulauan": ["konawe kepulauan", "konawe kep"],
     "Konawe Selatan": ["konawe selatan", "konsel"],
@@ -143,6 +159,13 @@ def find_col(columns, names=(), contains=()):
 def identify_district(school):
     s = re.sub(r"[^a-z0-9\s]", " ", norm(school))
     s = re.sub(r"\s+", " ", s).strip()
+    # Pemetaan sekolah yang telah dikonfirmasi diprioritaskan agar nama
+    # sekolah tanpa kata "Bombana" tidak tertinggal sebagai belum dipetakan.
+    for district, aliases in SCHOOL_DISTRICT_ALIASES.items():
+        for alias in aliases:
+            alias_norm = re.sub(r"\s+", " ", norm(alias)).strip()
+            if s == alias_norm or re.search(r"(?<![a-z0-9])" + re.escape(alias_norm) + r"(?![a-z0-9])", s):
+                return district, "Otomatis"
     found = []
     for district, aliases in ALIASES.items():
         for alias in aliases:
@@ -351,10 +374,9 @@ if "district_mapping" not in st.session_state:
         in_source = students.loc[students["Sekolah"] == school, "Kabupaten/Kota"]
         explicit = in_source.dropna().astype(str).str.strip()
         explicit = [x for x in explicit if x and x.casefold() not in ["belum dipetakan", "nan", "none"]]
-        if explicit:
+        district, status = identify_district(school)
+        if status != "Otomatis" and explicit:
             district, status = explicit[0], "Dari kolom Excel"
-        else:
-            district, status = identify_district(school)
         mapping_rows.append({"Sekolah": school, "Kabupaten/Kota": district, "Status Identifikasi": status})
     st.session_state["district_mapping"] = pd.DataFrame(mapping_rows)
 else:
@@ -362,11 +384,17 @@ else:
     old_names = set(old["Sekolah"].astype(str))
     additions = []
     for school in school_names:
+        district, status = identify_district(school)
         if school not in old_names:
-            district, status = identify_district(school)
             additions.append({"Sekolah": school, "Kabupaten/Kota": district, "Status Identifikasi": status})
+        elif status == "Otomatis":
+            # Perbarui juga pemetaan lama yang mungkin tersimpan di sesi aktif.
+            row_mask = old["Sekolah"].astype(str) == str(school)
+            old.loc[row_mask, "Kabupaten/Kota"] = district
+            old.loc[row_mask, "Status Identifikasi"] = status
     if additions:
-        st.session_state["district_mapping"] = pd.concat([old, pd.DataFrame(additions)], ignore_index=True)
+        old = pd.concat([old, pd.DataFrame(additions)], ignore_index=True)
+    st.session_state["district_mapping"] = old
 mapping = st.session_state["district_mapping"].copy()
 
 with st.sidebar:
