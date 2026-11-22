@@ -86,6 +86,27 @@ html, body, [class*="css"] {font-family:'DM Sans',sans-serif;}
 .stApp {background:#F4F7FB;}
 [data-testid="stSidebar"] {background:#14243D;}
 [data-testid="stSidebar"] * {color:#F8FAFC;}
+/* PERBAIKAN NAMA FILE UPLOAD AGAR TERLIHAT */
+[data-testid="stSidebar"] [data-testid="stFileUploader"] {
+    background: #FFFFFF !important;
+    border-radius: 10px;
+    padding: 10px;
+}
+
+[data-testid="stSidebar"] [data-testid="stFileUploader"] * {
+    color: #14243D !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stFileUploader"] button {
+    color: #FFFFFF !important;
+    background: #1D4E89 !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stFileUploader"] small,
+[data-testid="stSidebar"] [data-testid="stFileUploader"] span,
+[data-testid="stSidebar"] [data-testid="stFileUploader"] div {
+    color: #14243D !important;
+}
 .hero {background:linear-gradient(115deg,#14243D,#1D4E89 58%,#0F766E);
 border-radius:18px;padding:25px 30px;color:white;margin-bottom:20px;}
 .hero h1 {color:white;font-size:28px;margin:0 0 5px;font-weight:800;}
@@ -295,22 +316,87 @@ def school_subject_means(df):
 
 
 def ranking_tables(df):
-    means = school_subject_means(df)
-    pivot = means.pivot(index="Sekolah", columns="Mata Pelajaran", values="Rata_rata")
-    # Peringkat gabungan hanya menghitung sekolah yang memiliki ketiga mapel.
     required = list(SUBJECTS.keys())
-    complete = pivot.dropna(subset=required).copy() if all(x in pivot.columns for x in required) else pivot.iloc[0:0].copy()
-    if not complete.empty:
-        complete["Rata-rata 3 Mapel"] = complete[required].mean(axis=1)
-        overall = complete.reset_index().sort_values("Rata-rata 3 Mapel", ascending=False)
-        overall.insert(0, "Peringkat", range(1, len(overall) + 1))
-    else:
-        overall = pd.DataFrame(columns=["Peringkat", "Sekolah"] + required + ["Rata-rata 3 Mapel"])
-    subject_rankings = {}
+
+    # Rata-rata setiap sekolah untuk masing-masing mata pelajaran
+    means = (
+        df.groupby(
+            ["Sekolah", "Mata Pelajaran"],
+            as_index=False
+        )
+        .agg(
+            Rata_rata=("Nilai", "mean"),
+            Jumlah_peserta=("Nilai", "count")
+        )
+    )
+
+    # Membuat tabel rata-rata tiga mata pelajaran
+    pivot = means.pivot(
+        index="Sekolah",
+        columns="Mata Pelajaran",
+        values="Rata_rata"
+    )
+
+    # Pastikan ketiga mapel tersedia
     for subject in required:
-        one = means[means["Mata Pelajaran"] == subject].sort_values("Rata_rata", ascending=False).copy()
-        one.insert(0, "Peringkat", range(1, len(one) + 1))
+        if subject not in pivot.columns:
+            pivot[subject] = np.nan
+
+    # Hanya sekolah yang memiliki ketiga mapel
+    complete = pivot.dropna(subset=required).copy()
+
+    # Peringkat gabungan tiga mata pelajaran
+    if not complete.empty:
+
+        complete["Rata-rata 3 Mapel"] = (
+            complete[required].mean(axis=1)
+        )
+
+        overall = complete.reset_index()
+
+        overall = overall.sort_values(
+            "Rata-rata 3 Mapel",
+            ascending=False
+        ).reset_index(drop=True)
+
+        overall.insert(
+            0,
+            "Peringkat",
+            range(1, len(overall) + 1)
+        )
+
+    else:
+        overall = pd.DataFrame(
+            columns=[
+                "Peringkat",
+                "Sekolah",
+                *required,
+                "Rata-rata 3 Mapel"
+            ]
+        )
+
+    # Peringkat masing-masing mata pelajaran
+    subject_rankings = {}
+
+    for subject in required:
+
+        one = means[
+            means["Mata Pelajaran"] == subject
+        ].copy()
+
+        one = one.sort_values(
+            "Rata_rata",
+            ascending=False
+        ).reset_index(drop=True)
+
+        one.insert(
+            0,
+            "Peringkat",
+            range(1, len(one) + 1)
+        )
+
         subject_rankings[subject] = one
+
     return overall, subject_rankings, means
 
 
