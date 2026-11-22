@@ -1244,7 +1244,24 @@ elif page == "Manajemen & Eksplorasi Data":
                     if not rank_df.empty:
                         safe_name = {"Bahasa Indonesia":"Rank Indo", "Bahasa Inggris":"Rank Inggris", "Matematika":"Rank Matematika"}[subject_name]
                         rank_df.to_excel(writer, sheet_name=f"{safe_name} {round_label}", index=False)
-        students.to_excel(writer, sheet_name="Data Siswa", index=False)
+                        # Membersihkan datetime yang memiliki timezone agar kompatibel dengan Excel
+students_export = students.copy()
+
+def clean_datetime(value):
+    if isinstance(value, pd.Timestamp) and value.tz is not None:
+        return value.tz_localize(None)
+
+    if isinstance(value, datetime) and value.tzinfo is not None:
+        return value.replace(tzinfo=None)
+
+    return value
+
+for col in students_export.columns:
+    if isinstance(students_export[col].dtype, pd.DatetimeTZDtype):
+        students_export[col] = students_export[col].dt.tz_localize(None)
+    elif students_export[col].dtype == "object":
+        students_export[col] = students_export[col].map(clean_datetime)
+        students_export.to_excel(writer, sheet_name="Data Siswa", index=False)
         if not indicators.empty:
             indicators.to_excel(writer, sheet_name="Data Indikator", index=False)
         st.session_state["district_mapping"].to_excel(writer, sheet_name="Pemetaan Sekolah", index=False)
