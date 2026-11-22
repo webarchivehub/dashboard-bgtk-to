@@ -105,31 +105,6 @@ html, body, [class*="css"] {font-family:'DM Sans',sans-serif;}
 [data-testid="stSidebar"] [data-testid="stFileUploader"] small,
 [data-testid="stSidebar"] [data-testid="stFileUploader"] span,
 [data-testid="stSidebar"] [data-testid="stFileUploader"] div {
-}
-/* PERBAIKAN WARNA FILTER KABUPATEN DAN PUTARAN */
-[data-testid="stSidebar"] [data-testid="stSelectbox"] label {
-    color: #F8FAFC !important;
-}
-
-/* Kotak pilihan yang sedang tampil */
-[data-testid="stSidebar"] [data-testid="stSelectbox"] [data-baseweb="select"] > div {
-    background-color: #FFFFFF !important;
-    border-color: #CBD5E1 !important;
-}
-
-/* Tulisan nilai yang sedang dipilih */
-[data-testid="stSidebar"] [data-testid="stSelectbox"] [data-baseweb="select"] * {
-    color: #14243D !important;
-}
-
-/* Tulisan pilihan di menu dropdown */
-[data-baseweb="popover"] [role="listbox"],
-[data-baseweb="popover"] [role="option"] {
-    background-color: #FFFFFF !important;
-    color: #14243D !important;
-}
-
-[data-baseweb="popover"] [role="option"] * {
     color: #14243D !important;
 }
 .hero {background:linear-gradient(115deg,#14243D,#1D4E89 58%,#0F766E);
