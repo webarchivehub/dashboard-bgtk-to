@@ -1267,9 +1267,13 @@ for col in students_export.columns:
         st.session_state["district_mapping"].to_excel(writer, sheet_name="Pemetaan Sekolah", index=False)
         if not logs.empty:
             logs.to_excel(writer, sheet_name="Status Upload", index=False)
-    st.download_button("📥 Unduh hasil olahan Excel", report.getvalue(),
-                       f"hasil_analisis_{datetime.now():%Y%m%d_%H%M}.xlsx",
-                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+st.download_button(
+    "📥 Unduh hasil olahan Excel",
+    report.getvalue(),
+    f"hasil_analisis_{datetime.now():%Y%m%d_%H%M}.xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    key="download_hasil_olahan_excel"
+)
 
 st.divider()
 st.caption("BGTK · School Assessment Analytics | Hasil bersifat deskriptif dan mengikuti struktur workbook yang diunggah.")
