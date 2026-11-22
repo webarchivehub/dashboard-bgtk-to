@@ -439,23 +439,123 @@ if page == "Dashboard Utama":
         with right:
             fig = px.pie(subject_summary, names="Mata Pelajaran", values="Jumlah_peserta", hole=.55, color="Mata Pelajaran", color_discrete_map=COLORS, title="Komposisi peserta per mapel")
             st.plotly_chart(fig, use_container_width=True)
-        st.markdown("### 🏆 Peringkat sekolah berdasarkan rata-rata tiga mapel")
+        
+        # =====================================================
+        # PERINGKAT SEKOLAH BERDASARKAN RATA-RATA 3 MAPEL
+        # =====================================================
+        st.markdown("### 🏆 Peringkat Sekolah — Rata-rata 3 Mata Pelajaran")
+        st.caption(
+            f"Peringkat sekolah di {district_choice} · {round_choice} · "
+            "Diurutkan dari nilai tertinggi ke terendah"
+        )
+
         if overall.empty:
-            st.warning("Peringkat gabungan belum dapat dihitung. Setiap sekolah harus memiliki data ketiga mapel: Bahasa Indonesia, Bahasa Inggris, dan Matematika.")
+            st.warning(
+                "Peringkat gabungan belum dapat dihitung. "
+                "Setiap sekolah harus memiliki data ketiga mata pelajaran."
+            )
         else:
-            st.dataframe(fmt_table(overall), use_container_width=True, hide_index=True)
-            fig = px.bar(overall, x="Sekolah", y="Rata-rata 3 Mapel", color="Rata-rata 3 Mapel",
-                         color_continuous_scale="Blues", title="Peringkat gabungan sekolah")
-            fig.update_layout(xaxis_tickangle=-35)
+            overall_sorted = overall.sort_values(
+                "Rata-rata 3 Mapel", ascending=False
+            ).copy()
+
+            fig = px.bar(
+                overall_sorted,
+                x="Sekolah",
+                y="Rata-rata 3 Mapel",
+                text=overall_sorted["Rata-rata 3 Mapel"].map(
+                    lambda x: f"{x:.2f}"
+                ),
+                color="Rata-rata 3 Mapel",
+                color_continuous_scale="Blues",
+                title="Peringkat Sekolah Berdasarkan Rata-rata 3 Mapel"
+            )
+            fig.update_traces(textposition="outside")
+            fig.update_layout(
+                xaxis_tickangle=-40,
+                xaxis_title="Nama Sekolah",
+                yaxis_title="Rata-rata Nilai",
+                coloraxis_showscale=False,
+                height=500
+            )
             st.plotly_chart(fig, use_container_width=True)
-        st.markdown("### Rata-rata sekolah per mata pelajaran")
+
+            st.markdown("#### Tabel Peringkat Gabungan")
+            st.dataframe(
+                fmt_table(overall_sorted),
+                use_container_width=True,
+                hide_index=True
+            )
+
+        # =====================================================
+        # PERINGKAT SEKOLAH BERDASARKAN MASING-MASING MAPEL
+        # =====================================================
+        st.markdown("---")
+        st.markdown("### 📚 Peringkat Sekolah per Mata Pelajaran")
+        st.caption(
+            "Setiap mata pelajaran memiliki pemeringkatan tersendiri "
+            "berdasarkan rata-rata nilai sekolah."
+        )
+
         for subject in SUBJECTS:
-            st.markdown(f"**{subject}**")
-            tab = subject_rankings[subject]
+            st.markdown(f"#### 🏅 Peringkat {subject}")
+
+            tab = subject_rankings[subject].copy()
+
             if tab.empty:
-                st.info(f"Belum ada data {subject}.")
-            else:
-                st.dataframe(fmt_table(tab), use_container_width=True, hide_index=True)
+                st.info(f"Belum tersedia data untuk {subject}.")
+                continue
+
+            # Urutkan nilai dari tertinggi ke terendah
+            tab = tab.sort_values(
+                "Rata_rata", ascending=False
+            ).reset_index(drop=True)
+
+            # Perbarui nomor peringkat
+            tab["Peringkat"] = range(1, len(tab) + 1)
+
+            # Grafik peringkat sekolah
+            fig = px.bar(
+                tab,
+                x="Sekolah",
+                y="Rata_rata",
+                text=tab["Rata_rata"].map(
+                    lambda x: f"{x:.2f}"
+                ),
+                color="Rata_rata",
+                color_continuous_scale="Blues",
+                title=f"Peringkat Rata-rata {subject} per Sekolah",
+                hover_data=["Peringkat", "Jumlah_peserta"]
+            )
+
+            fig.update_traces(
+                textposition="outside",
+                marker_line_width=0
+            )
+
+            fig.update_layout(
+                xaxis_title="Nama Sekolah",
+                yaxis_title="Rata-rata Nilai",
+                xaxis_tickangle=-40,
+                coloraxis_showscale=False,
+                height=480,
+                margin=dict(t=65, b=100)
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
+
+            # Tabel peringkat
+            st.markdown(f"**Tabel Peringkat {subject}**")
+
+            st.dataframe(
+                fmt_table(tab),
+                use_container_width=True,
+                hide_index=True
+            )
+
         st.markdown("### Sebaran nilai peserta didik")
         left, right = st.columns(2)
         with left:
