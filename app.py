@@ -105,7 +105,6 @@ html, body, [class*="css"] {font-family:'DM Sans',sans-serif;}
 [data-testid="stSidebar"] [data-testid="stFileUploader"] small,
 [data-testid="stSidebar"] [data-testid="stFileUploader"] span,
 [data-testid="stSidebar"] [data-testid="stFileUploader"] div {
-    color: #14243D !important;
 }
 /* PERBAIKAN WARNA FILTER KABUPATEN DAN PUTARAN */
 [data-testid="stSidebar"] [data-testid="stSelectbox"] label {
