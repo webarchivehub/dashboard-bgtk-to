@@ -107,6 +107,32 @@ html, body, [class*="css"] {font-family:'DM Sans',sans-serif;}
 [data-testid="stSidebar"] [data-testid="stFileUploader"] div {
     color: #14243D !important;
 }
+/* PERBAIKAN WARNA FILTER KABUPATEN DAN PUTARAN */
+[data-testid="stSidebar"] [data-testid="stSelectbox"] label {
+    color: #F8FAFC !important;
+}
+
+/* Kotak pilihan yang sedang tampil */
+[data-testid="stSidebar"] [data-testid="stSelectbox"] [data-baseweb="select"] > div {
+    background-color: #FFFFFF !important;
+    border-color: #CBD5E1 !important;
+}
+
+/* Tulisan nilai yang sedang dipilih */
+[data-testid="stSidebar"] [data-testid="stSelectbox"] [data-baseweb="select"] * {
+    color: #14243D !important;
+}
+
+/* Tulisan pilihan di menu dropdown */
+[data-baseweb="popover"] [role="listbox"],
+[data-baseweb="popover"] [role="option"] {
+    background-color: #FFFFFF !important;
+    color: #14243D !important;
+}
+
+[data-baseweb="popover"] [role="option"] * {
+    color: #14243D !important;
+}
 .hero {background:linear-gradient(115deg,#14243D,#1D4E89 58%,#0F766E);
 border-radius:18px;padding:25px 30px;color:white;margin-bottom:20px;}
 .hero h1 {color:white;font-size:28px;margin:0 0 5px;font-weight:800;}
@@ -858,38 +884,298 @@ elif page == "Analisis Indikator":
 
 elif page == "Rekap Per Kabupaten":
     st.subheader("Rekapitulasi Hasil Asesmen per Kabupaten/Kota")
-    st.info("Pemetaan kabupaten/kota dapat diperiksa dan diperbaiki melalui menu Manajemen & Eksplorasi Data. Rekap mengikuti kabupaten/kota yang dipilih pada sidebar.")
-    district_data=selected.copy()
-    district_data=district_data[district_data["Kabupaten/Kota"]!="Belum dipetakan"]
-    if district_data.empty:
-        st.warning("Belum ada sekolah yang terpetakan pada filter aktif.")
-    else:
-        district_summary=district_data.groupby("Kabupaten/Kota",as_index=False).agg(Jumlah_sekolah=("Sekolah","nunique"),Jumlah_peserta=("Nilai","count"),Rata_rata_nilai=("Nilai","mean"),Median_nilai=("Nilai","median"),Nilai_tertinggi=("Nilai","max"),Nilai_terendah=("Nilai","min")).sort_values("Rata_rata_nilai",ascending=False)
-        a,b,c,d=st.columns(4)
-        with a: metric_card("Kabupaten/Kota",f"{district_data['Kabupaten/Kota'].nunique()}")
-        with b: metric_card("Jumlah sekolah",f"{district_data['Sekolah'].nunique()}")
-        with c: metric_card("Jumlah peserta",f"{len(district_data):,}")
-        with d: metric_card("Rata-rata nilai",f"{district_data['Nilai'].mean():.2f}")
-        fig=px.bar(district_summary,x="Kabupaten/Kota",y="Rata_rata_nilai",color="Rata_rata_nilai",color_continuous_scale="Blues",text=district_summary["Rata_rata_nilai"].map(lambda v:f"{v:.2f}"),title="Rata-rata nilai per kabupaten/kota")
-        fig.update_traces(textposition="outside")
-        st.plotly_chart(fig,use_container_width=True)
-        left,right=st.columns(2)
-        with left:
-            fig=px.bar(district_summary,x="Kabupaten/Kota",y="Jumlah_sekolah",text="Jumlah_sekolah",title="Jumlah sekolah")
-            st.plotly_chart(fig,use_container_width=True)
-        with right:
-            fig=px.bar(district_summary,x="Kabupaten/Kota",y="Jumlah_peserta",text="Jumlah_peserta",title="Jumlah peserta didik")
-            st.plotly_chart(fig,use_container_width=True)
-        st.markdown("#### Perbandingan mata pelajaran per kabupaten/kota")
-        subject_district=district_data.groupby(["Kabupaten/Kota","Mata Pelajaran"],as_index=False).agg(Rata_rata=("Nilai","mean"),Peserta=("Nilai","count"))
-        fig=px.bar(subject_district,x="Kabupaten/Kota",y="Rata_rata",color="Mata Pelajaran",barmode="group",color_discrete_map=COLORS)
-        st.plotly_chart(fig,use_container_width=True)
-        st.dataframe(fmt_table(district_summary),use_container_width=True,hide_index=True)
-        school_detail=district_data.groupby(["Kabupaten/Kota","Sekolah","Mata Pelajaran"],as_index=False).agg(Jumlah_peserta=("Nilai","count"),Rata_rata=("Nilai","mean"))
-        st.markdown("#### Rincian sekolah")
-        st.dataframe(fmt_table(school_detail),use_container_width=True,hide_index=True)
-        st.download_button("⬇️ Unduh rekap kabupaten/kota CSV",district_summary.to_csv(index=False).encode("utf-8-sig"),"rekap_kabupaten_kota.csv","text/csv")
+    st.info(
+        "Pemetaan kabupaten/kota dapat diperiksa dan diperbaiki melalui "
+        "menu Manajemen & Eksplorasi Data. Rekap mengikuti kabupaten/kota "
+        "yang dipilih pada sidebar."
+    )
 
+    district_data = selected.copy()
+    district_data = district_data[
+        district_data["Kabupaten/Kota"] != "Belum dipetakan"
+    ]
+
+    if district_data.empty:
+        st.warning("Belum ada data yang terpetakan pada filter aktif.")
+
+    else:
+        # =====================================================
+        # RINGKASAN KABUPATEN/KOTA
+        # =====================================================
+        district_summary = (
+            district_data.groupby("Kabupaten/Kota", as_index=False)
+            .agg(
+                Jumlah_sekolah=("Sekolah", "nunique"),
+                Jumlah_peserta=("Nilai", "count"),
+                Rata_rata_nilai=("Nilai", "mean"),
+                Median_nilai=("Nilai", "median"),
+                Nilai_tertinggi=("Nilai", "max"),
+                Nilai_terendah=("Nilai", "min")
+            )
+            .sort_values("Rata_rata_nilai", ascending=False)
+        )
+
+        a, b, c, d = st.columns(4)
+
+        with a:
+            metric_card(
+                "Kabupaten/Kota",
+                f"{district_data['Kabupaten/Kota'].nunique()}"
+            )
+
+        with b:
+            metric_card(
+                "Jumlah sekolah",
+                f"{district_data['Sekolah'].nunique()}"
+            )
+
+        with c:
+            metric_card(
+                "Jumlah peserta",
+                f"{len(district_data):,}"
+            )
+
+        with d:
+            metric_card(
+                "Rata-rata nilai",
+                f"{district_data['Nilai'].mean():.2f}"
+            )
+
+        # =====================================================
+        # GRAFIK RATA-RATA NILAI KABUPATEN/KOTA
+        # =====================================================
+        st.markdown("### 📊 Grafik Rekap Kabupaten/Kota")
+
+        fig = px.bar(
+            district_summary,
+            x="Kabupaten/Kota",
+            y="Rata_rata_nilai",
+            color="Rata_rata_nilai",
+            color_continuous_scale="Blues",
+            text=district_summary["Rata_rata_nilai"].map(
+                lambda v: f"{v:.2f}"
+            ),
+            title="Rata-rata Nilai per Kabupaten/Kota"
+        )
+        fig.update_traces(textposition="outside")
+        fig.update_layout(
+            xaxis_title="Kabupaten/Kota",
+            yaxis_title="Rata-rata Nilai",
+            coloraxis_showscale=False,
+            height=450
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        left, right = st.columns(2)
+
+        with left:
+            fig = px.bar(
+                district_summary,
+                x="Kabupaten/Kota",
+                y="Jumlah_sekolah",
+                text="Jumlah_sekolah",
+                title="Jumlah Sekolah per Kabupaten/Kota"
+            )
+            fig.update_traces(textposition="outside")
+            st.plotly_chart(fig, use_container_width=True)
+
+        with right:
+            fig = px.bar(
+                district_summary,
+                x="Kabupaten/Kota",
+                y="Jumlah_peserta",
+                text="Jumlah_peserta",
+                title="Jumlah Peserta Didik per Kabupaten/Kota"
+            )
+            fig.update_traces(textposition="outside")
+            st.plotly_chart(fig, use_container_width=True)
+
+        # =====================================================
+        # PERBANDINGAN MATA PELAJARAN PER KABUPATEN
+        # =====================================================
+        st.markdown("### 📚 Perbandingan Mata Pelajaran per Kabupaten/Kota")
+
+        subject_district = (
+            district_data.groupby(
+                ["Kabupaten/Kota", "Mata Pelajaran"],
+                as_index=False
+            )
+            .agg(
+                Rata_rata=("Nilai", "mean"),
+                Peserta=("Nilai", "count")
+            )
+        )
+
+        fig = px.bar(
+            subject_district,
+            x="Kabupaten/Kota",
+            y="Rata_rata",
+            color="Mata Pelajaran",
+            barmode="group",
+            color_discrete_map=COLORS,
+            text=subject_district["Rata_rata"].map(
+                lambda v: f"{v:.2f}"
+            ),
+            title="Rata-rata Setiap Mata Pelajaran"
+        )
+        fig.update_traces(textposition="outside")
+        fig.update_layout(
+            xaxis_title="Kabupaten/Kota",
+            yaxis_title="Rata-rata Nilai",
+            height=480
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.dataframe(
+            fmt_table(district_summary),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        # =====================================================
+        # PERINGKAT SEKOLAH BERDASARKAN RATA-RATA 3 MAPEL
+        # =====================================================
+        st.markdown("---")
+        st.markdown("### 🏆 Peringkat Sekolah — Rata-rata 3 Mata Pelajaran")
+        st.caption(
+            f"Wilayah: {district_choice} · Data: {round_choice} · "
+            "Urutan dari rata-rata tertinggi ke terendah."
+        )
+
+        overall, subject_rankings, means = ranking_tables(district_data)
+
+        if overall.empty:
+            st.warning(
+                "Peringkat gabungan belum dapat dihitung. "
+                "Sekolah harus memiliki data Bahasa Indonesia, "
+                "Bahasa Inggris, dan Matematika."
+            )
+        else:
+            overall_sorted = overall.sort_values(
+                "Rata-rata 3 Mapel",
+                ascending=False
+            ).reset_index(drop=True)
+
+            fig = px.bar(
+                overall_sorted,
+                x="Sekolah",
+                y="Rata-rata 3 Mapel",
+                text=overall_sorted["Rata-rata 3 Mapel"].map(
+                    lambda v: f"{v:.2f}"
+                ),
+                color="Rata-rata 3 Mapel",
+                color_continuous_scale="Blues",
+                title="Peringkat Sekolah Berdasarkan Rata-rata 3 Mapel",
+                hover_data=["Peringkat"]
+            )
+            fig.update_traces(textposition="outside")
+            fig.update_layout(
+                xaxis_title="Nama Sekolah",
+                yaxis_title="Rata-rata Nilai",
+                xaxis_tickangle=-40,
+                coloraxis_showscale=False,
+                height=520,
+                margin=dict(t=65, b=110)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown("#### Tabel Peringkat Gabungan Sekolah")
+            st.dataframe(
+                fmt_table(overall_sorted),
+                use_container_width=True,
+                hide_index=True
+            )
+
+        # =====================================================
+        # PERINGKAT SEKOLAH UNTUK SETIAP MAPEL
+        # =====================================================
+        st.markdown("---")
+        st.markdown("### 📖 Peringkat Sekolah per Mata Pelajaran")
+
+        for subject in SUBJECTS:
+            st.markdown(f"#### 🥇 Peringkat {subject}")
+
+            rank_subject = subject_rankings[subject].copy()
+
+            if rank_subject.empty:
+                st.info(f"Belum tersedia data untuk {subject}.")
+                continue
+
+            rank_subject = rank_subject.sort_values(
+                "Rata_rata",
+                ascending=False
+            ).reset_index(drop=True)
+
+            rank_subject["Peringkat"] = range(
+                1, len(rank_subject) + 1
+            )
+
+            fig = px.bar(
+                rank_subject,
+                x="Sekolah",
+                y="Rata_rata",
+                text=rank_subject["Rata_rata"].map(
+                    lambda v: f"{v:.2f}"
+                ),
+                color="Rata_rata",
+                color_continuous_scale="Blues",
+                title=f"Peringkat Sekolah — {subject}",
+                hover_data=["Peringkat", "Jumlah_peserta"]
+            )
+            fig.update_traces(textposition="outside")
+            fig.update_layout(
+                xaxis_title="Nama Sekolah",
+                yaxis_title="Rata-rata Nilai",
+                xaxis_tickangle=-40,
+                coloraxis_showscale=False,
+                height=480,
+                margin=dict(t=65, b=110)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown(f"**Tabel Peringkat {subject}**")
+            st.dataframe(
+                fmt_table(rank_subject),
+                use_container_width=True,
+                hide_index=True
+            )
+
+        # =====================================================
+        # RINCIAN SEKOLAH
+        # =====================================================
+        st.markdown("---")
+        st.markdown("### 🏫 Rincian Nilai Setiap Sekolah")
+
+        school_detail = (
+            district_data.groupby(
+                ["Kabupaten/Kota", "Sekolah", "Mata Pelajaran"],
+                as_index=False
+            )
+            .agg(
+                Jumlah_peserta=("Nilai", "count"),
+                Rata_rata=("Nilai", "mean")
+            )
+            .sort_values(
+                ["Kabupaten/Kota", "Mata Pelajaran", "Rata_rata"],
+                ascending=[True, True, False]
+            )
+        )
+
+        st.dataframe(
+            fmt_table(school_detail),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        # =====================================================
+        # DOWNLOAD REKAP
+        # =====================================================
+        st.download_button(
+            "⬇️ Unduh rekap kabupaten/kota CSV",
+            district_summary.to_csv(index=False).encode("utf-8-sig"),
+            "rekap_kabupaten_kota.csv",
+            "text/csv"
+        )
 elif page == "Data Peserta Didik":
     st.subheader("Data Peserta Didik")
     view = selected.copy()
