@@ -16,6 +16,8 @@ SUBJECTS = {
             "ANALISIS INDIKATOR B.INDO",
             "ANALISIS REKAP INDIKATOR B.INDO",
             "ANLISIS REKAP INDKTR. B INDO",
+            "REKAP INDIKATOR BAHASA INDONESIA",
+            "ANALISIS REKAP INDIKATOR BAHASA INDONESIA",
         ],
     },
     "Bahasa Inggris": {
@@ -23,12 +25,18 @@ SUBJECTS = {
         "indicator": [
             "ANLISIS REKAP INDKTR. B INGGRIS",
             "ANALISIS REKAP INDIKATOR B INGGRIS",
+            "REKAP INDIKATOR BAHASA INGGRIS",
+            "ANALISIS REKAP INDIKATOR BAHASA INGGRIS",
+            "ANALISIS INDIKATOR B.INGGRIS",
         ],
     },
     "Matematika": {
         "raw": ["DATA 1_MATEMATIKA"],
         "indicator": [
             "ANLISIS REKAP INDKTR. MATEMTK",
+            "ANALISIS REKAP INDIKATOR MATEMATIKA",
+            "REKAP INDIKATOR MATEMATIKA",
+            "ANALISIS INDIKATOR MATEMATIKA",
             "ANALISIS REKAP INDIKATOR MATEMATIKA",
         ],
     },
@@ -263,35 +271,75 @@ def read_students(xls, sheet, filename, round_name):
     return out
 
 
+
 def read_indicators(xls, sheet, school, subject, round_name):
     df = pd.read_excel(xls, sheet_name=sheet)
+
     if df.empty:
         return pd.DataFrame()
+
     df.columns = [str(c).strip() for c in df.columns]
+
+    def find_indicator_col(columns, aliases):
+        # Normalisasi nama kolom: abaikan spasi, titik, tanda kurung, dan simbol
+        normalized = {
+            re.sub(r"[^a-z0-9]", "", norm(col)): col
+            for col in columns
+        }
+
+        for alias in aliases:
+            key = re.sub(r"[^a-z0-9]", "", norm(alias))
+            if key in normalized:
+                return normalized[key]
+
+        # Pencarian berdasarkan kata kunci
+        for col in columns:
+            key = re.sub(r"[^a-z0-9]", "", norm(col))
+            for alias in aliases:
+                alias_key = re.sub(r"[^a-z0-9]", "", norm(alias))
+                if alias_key and alias_key in key:
+                    return col
+
+        return None
+
     mapping = {
         "No Soal": ["NO SOAL", "NOMOR SOAL"],
         "No Indikator": ["NO INDIKATOR", "NOMOR INDIKATOR"],
         "Rata-rata": ["RATA RATA", "RATA-RATA"],
-        "Ketercapaian": ["KETERCAPAIAN", "PERSENTASE KETERCAPAIAN"],
+        "Ketercapaian": [
+            "KETERCAPAIAN",
+            "PERSENTASE KETERCAPAIAN",
+            "KETERCAPAIAN (%)",
+            "PERSENTASE",
+            "PERSENTASE (%)",
+            "CAPAIAN",
+        ],
         "Kategori Soal": ["KATEGORI SOAL", "KATEGORI"],
         "Indikator": ["INDIKATOR"],
         "Kompetensi": ["KOMPETENSI", "KOMOETENSI"],
         "Sub Elemen": ["SUB ELEMEN"],
         "Elemen": ["ELEMEN"],
     }
+
     rename = {}
-    for standard, options in mapping.items():
-        col = find_col(df.columns, options)
+
+    for standard, aliases in mapping.items():
+        col = find_indicator_col(df.columns, aliases)
         if col:
             rename[col] = standard
+
     df = df.rename(columns=rename)
-    if "Ketercapaian" in df:
+
+    if "Ketercapaian" in df.columns:
         df["Ketercapaian"] = df["Ketercapaian"].apply(parse_number)
-    if "Rata-rata" in df:
+
+    if "Rata-rata" in df.columns:
         df["Rata-rata"] = df["Rata-rata"].apply(parse_number)
+
     df["Sekolah"] = clean_school(school)
     df["Mata Pelajaran"] = subject
     df["Try Out"] = round_name
+
     return df
 
 
