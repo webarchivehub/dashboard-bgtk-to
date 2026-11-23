@@ -1,17 +1,6 @@
 import re
 import io
 from io import BytesIO
-from datetime import datetime
-
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
-
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -497,185 +486,9 @@ def fmt_table(df):
     return df.round(2) if not df.empty else df
 
 
-# =====================================================
-# FUNGSI EKSPOR: EXCEL SESUAI TABEL DAN PDF DASHBOARD
-# =====================================================
-_download_counter = 0
-
-def dataframe_to_excel_bytes(df, sheet_name="Data"):
-    """Membuat file Excel dari DataFrame yang benar-benar ditampilkan."""
-    output = BytesIO()
-    export_df = df.copy()
-    for col in export_df.columns:
-        if isinstance(export_df[col].dtype, pd.DatetimeTZDtype):
-            export_df[col] = export_df[col].dt.tz_localize(None)
-        elif export_df[col].dtype == "object":
-            export_df[col] = export_df[col].map(
-                lambda value: value.tz_localize(None)
-                if isinstance(value, pd.Timestamp) and value.tz is not None
-                else value.replace(tzinfo=None)
-                if isinstance(value, datetime) and value.tzinfo is not None
-                else value
-            )
-    safe_sheet = re.sub(r"[\\/*?:\[\]]", "_", str(sheet_name))[:31] or "Data"
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        export_df.to_excel(writer, sheet_name=safe_sheet, index=False)
-    output.seek(0)
-    return output.getvalue()
-
-
 def show_dataframe(df, *args, **kwargs):
-    """Menampilkan tabel dan menyediakan Excel yang isinya identik dengan tabel itu."""
-    global _download_counter
+    """Menampilkan tabel tanpa menambahkan tombol unduh terpisah."""
     st.dataframe(df, *args, **kwargs)
-    if isinstance(df, pd.DataFrame):
-        _download_counter += 1
-        sheet_name = f"Tabel {_download_counter}"
-        st.download_button(
-            label="📥 Unduh tabel ini (Excel)",
-            data=dataframe_to_excel_bytes(df, sheet_name),
-            file_name=f"tabel_{_download_counter}_{datetime.now():%Y%m%d_%H%M%S}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"download_table_excel_{_download_counter}"
-        )
-
-
-def build_dashboard_pdf(students_df, indicators_df, district_filter, round_filter, district_mapping_df):
-    """Laporan PDF berisi ringkasan, visualisasi utama, dan tabel keseluruhan dashboard."""
-    pdf_buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        pdf_buffer, pagesize=landscape(A4),
-        rightMargin=1.2*cm, leftMargin=1.2*cm,
-        topMargin=1.2*cm, bottomMargin=1.2*cm
-    )
-    styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle(name="SmallCell", parent=styles["BodyText"], fontSize=7, leading=8))
-    story = []
-    title = "LAPORAN SCHOOL ASSESSMENT ANALYTICS"
-    story.append(Paragraph(title, styles["Title"]))
-    story.append(Paragraph("Dashboard pemantauan hasil Try Out 1 dan Try Out 2 · BGTK", styles["Heading2"]))
-    story.append(Paragraph(
-        f"Filter Kabupaten/Kota: {district_filter} &nbsp;&nbsp; | &nbsp;&nbsp; Putaran: {round_filter} &nbsp;&nbsp; | &nbsp;&nbsp; Tanggal: {datetime.now():%d-%m-%Y %H:%M}",
-        styles["Normal"]
-    ))
-    story.append(Spacer(1, 0.35*cm))
-
-    if students_df.empty:
-        story.append(Paragraph("Tidak ada data siswa untuk filter yang dipilih.", styles["BodyText"]))
-        doc.build(story)
-        pdf_buffer.seek(0)
-        return pdf_buffer.getvalue()
-
-    n_school = students_df["Sekolah"].nunique()
-    n_student_rows = len(students_df)
-    avg_score = students_df["Nilai"].mean()
-    n_subjects = students_df["Mata Pelajaran"].nunique()
-    summary = [
-        ["Jumlah Sekolah", "Jumlah Baris Nilai", "Rata-rata Nilai", "Mata Pelajaran"],
-        [f"{n_school:,}", f"{n_student_rows:,}", f"{avg_score:.2f}", f"{n_subjects:,}"]
-    ]
-    t = Table(summary, colWidths=[6.2*cm]*4)
-    t.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#14243D")),
-        ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-        ("BACKGROUND", (0,1), (-1,-1), colors.HexColor("#EFF6FF")),
-        ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E1")),
-        ("ALIGN", (0,0), (-1,-1), "CENTER"),
-        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-        ("FONTSIZE", (0,0), (-1,-1), 9),
-        ("TOPPADDING", (0,0), (-1,-1), 7),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 7),
-    ]))
-    story.append(t)
-    story.append(Spacer(1, 0.4*cm))
-
-    # Visualisasi 1: rata-rata per mata pelajaran
-    subject_summary = students_df.groupby("Mata Pelajaran", as_index=False).agg(
-        Rata_rata=("Nilai", "mean"), Jumlah_peserta=("Nilai", "count")
-    )
-    fig, ax = plt.subplots(figsize=(9.5, 3.3))
-    ax.bar(subject_summary["Mata Pelajaran"], subject_summary["Rata_rata"])
-    ax.set_title("Rata-rata Nilai per Mata Pelajaran")
-    ax.set_ylabel("Rata-rata Nilai")
-    ax.grid(axis="y", alpha=0.25)
-    fig.tight_layout()
-    chart = BytesIO(); fig.savefig(chart, format="png", dpi=160, bbox_inches="tight"); plt.close(fig); chart.seek(0)
-    story.append(Image(chart, width=16*cm, height=5.5*cm))
-
-    # Visualisasi 2: rata-rata per kabupaten/kota
-    if "Kabupaten/Kota" in students_df.columns:
-        district_summary = students_df.groupby("Kabupaten/Kota", as_index=False).agg(
-            Rata_rata=("Nilai", "mean"), Jumlah_sekolah=("Sekolah", "nunique"),
-            Jumlah_peserta=("Nilai", "count")
-        ).sort_values("Rata_rata", ascending=False)
-        fig, ax = plt.subplots(figsize=(10, 3.8))
-        ax.bar(district_summary["Kabupaten/Kota"].astype(str), district_summary["Rata_rata"])
-        ax.set_title("Rata-rata Nilai per Kabupaten/Kota")
-        ax.set_ylabel("Rata-rata Nilai")
-        ax.tick_params(axis="x", rotation=35, labelsize=7)
-        ax.grid(axis="y", alpha=0.25)
-        fig.tight_layout()
-        chart2 = BytesIO(); fig.savefig(chart2, format="png", dpi=160, bbox_inches="tight"); plt.close(fig); chart2.seek(0)
-        story.append(Paragraph("Visualisasi Kabupaten/Kota", styles["Heading2"]))
-        story.append(Image(chart2, width=17*cm, height=6.3*cm))
-        story.append(Spacer(1, 0.2*cm))
-
-    # Visualisasi 3: perbandingan TO 1 dan TO 2 bila keduanya tersedia
-    available_rounds = set(students_df["Try Out"].dropna().unique())
-    if {"TO 1", "TO 2"}.issubset(available_rounds):
-        round_summary = students_df.groupby(["Try Out", "Mata Pelajaran"], as_index=False)["Nilai"].mean()
-        pivot = round_summary.pivot(index="Mata Pelajaran", columns="Try Out", values="Nilai").reset_index()
-        fig, ax = plt.subplots(figsize=(9.5, 3.3))
-        x = np.arange(len(pivot)); width = 0.35
-        ax.bar(x-width/2, pivot["TO 1"], width, label="TO 1")
-        ax.bar(x+width/2, pivot["TO 2"], width, label="TO 2")
-        ax.set_xticks(x); ax.set_xticklabels(pivot["Mata Pelajaran"])
-        ax.set_title("Perbandingan Rata-rata TO 1 dan TO 2")
-        ax.set_ylabel("Rata-rata Nilai"); ax.legend(); ax.grid(axis="y", alpha=0.25)
-        fig.tight_layout()
-        chart3 = BytesIO(); fig.savefig(chart3, format="png", dpi=160, bbox_inches="tight"); plt.close(fig); chart3.seek(0)
-        story.append(Paragraph("Perbandingan Hasil Try Out", styles["Heading2"]))
-        story.append(Image(chart3, width=16*cm, height=5.5*cm))
-
-    # Tabel peringkat gabungan dan peringkat setiap mapel
-    overall, subject_ranks, _ = ranking_tables(students_df)
-    story.append(PageBreak())
-    story.append(Paragraph("REKAP DAN PERINGKAT SEKOLAH", styles["Heading1"]))
-
-    def add_dataframe_table(frame, heading, max_rows=60):
-        if frame is None or frame.empty:
-            return
-        story.append(Paragraph(heading, styles["Heading2"]))
-        shown = frame.head(max_rows).copy()
-        data = [[str(c) for c in shown.columns]]
-        for row in shown.itertuples(index=False, name=None):
-            data.append(["" if pd.isna(v) else str(round(v, 2) if isinstance(v, (int, float, np.number)) else v) for v in row])
-        widths = [landscape(A4)[0] * 0.94 / max(1, len(shown.columns))] * len(shown.columns)
-        table = Table(data, colWidths=widths, repeatRows=1)
-        table.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#14243D")),
-            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-            ("GRID", (0,0), (-1,-1), 0.35, colors.HexColor("#CBD5E1")),
-            ("FONTSIZE", (0,0), (-1,-1), 6.5),
-            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F1F5F9")]),
-        ]))
-        story.append(table); story.append(Spacer(1, 0.25*cm))
-        if len(frame) > max_rows:
-            story.append(Paragraph(f"Ditampilkan {max_rows} dari {len(frame)} baris. Data lengkap tersedia melalui unduhan Excel.", styles["Italic"]))
-
-    add_dataframe_table(overall, "Peringkat Gabungan 3 Mata Pelajaran")
-    for subject_name, rank_df in subject_ranks.items():
-        add_dataframe_table(rank_df, f"Peringkat {subject_name}")
-    add_dataframe_table(district_summary if "district_summary" in locals() else pd.DataFrame(), "Ringkasan Kabupaten/Kota")
-    if not indicators_df.empty:
-        add_dataframe_table(indicators_df, "Rekap Data Indikator", max_rows=80)
-    if district_mapping_df is not None and not district_mapping_df.empty:
-        add_dataframe_table(district_mapping_df, "Pemetaan Sekolah ke Kabupaten/Kota")
-
-    doc.build(story)
-    pdf_buffer.seek(0)
-    return pdf_buffer.getvalue()
 
 
 # Sidebar uploads: dua putaran terpisah
@@ -769,19 +582,6 @@ selected_ind = choose_round(indicators, round_choice) if not indicators.empty el
 if not selected_ind.empty and district_choice != "Semua Kabupaten/Kota":
     selected_ind = selected_ind[selected_ind["Kabupaten/Kota"] == district_choice]
 
-
-# Unduhan PDF laporan visualisasi keseluruhan dashboard
-pdf_data = build_dashboard_pdf(
-    selected, selected_ind, district_choice, round_choice, mapping
-)
-st.download_button(
-    label="📄 Download PDF — Visualisasi Keseluruhan Dashboard",
-    data=pdf_data,
-    file_name=f"laporan_dashboard_BGTK_{datetime.now():%Y%m%d_%H%M}.pdf",
-    mime="application/pdf",
-    key="download_dashboard_pdf"
-)
-st.divider()
 
 if page == "Dashboard Utama":
     st.subheader("Dashboard Kabupaten/Kota")
@@ -1479,39 +1279,5 @@ elif page == "Manajemen & Eksplorasi Data":
     if not students.empty:
         with st.expander("Lihat seluruh data siswa"):
             show_dataframe(students, use_container_width=True, hide_index=True)
-    # Workbook lengkap mengikuti filter aktif; setiap tabel di dashboard juga
-    # memiliki tombol Excel masing-masing yang isinya persis seperti tabel layar.
-    excel_buffer = BytesIO()
-    students_export = selected.copy()
-    indicators_export = selected_ind.copy() if not selected_ind.empty else pd.DataFrame()
-    mapping_export = st.session_state["district_mapping"].copy()
-    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-        if not students_export.empty:
-            students_export.to_excel(writer, sheet_name="Data Siswa Terfilter", index=False)
-            summary_export = students_export.groupby(
-                ["Try Out", "Kabupaten/Kota", "Sekolah", "Mata Pelajaran"], as_index=False
-            ).agg(Jumlah_peserta=("Nilai", "count"), Rata_rata=("Nilai", "mean"))
-            summary_export.to_excel(writer, sheet_name="Ringkasan", index=False)
-            overall_export, subject_export, _ = ranking_tables(students_export)
-            if not overall_export.empty:
-                overall_export.to_excel(writer, sheet_name="Peringkat 3 Mapel", index=False)
-            for subject_name, rank_df in subject_export.items():
-                if not rank_df.empty:
-                    sheet = {"Bahasa Indonesia": "Rank Indo", "Bahasa Inggris": "Rank Inggris", "Matematika": "Rank Matematika"}[subject_name]
-                    rank_df.to_excel(writer, sheet_name=sheet, index=False)
-        if not indicators_export.empty:
-            indicators_export.to_excel(writer, sheet_name="Data Indikator", index=False)
-        mapping_export.to_excel(writer, sheet_name="Pemetaan Sekolah", index=False)
-        if not logs.empty:
-            logs.to_excel(writer, sheet_name="Status Upload", index=False)
-    excel_buffer.seek(0)
-    st.download_button(
-        label="📥 Unduh seluruh data terfilter (Excel)",
-        data=excel_buffer.getvalue(),
-        file_name=f"hasil_analisis_BGTK_{datetime.now():%Y%m%d_%H%M}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="download_hasil_olahan_excel"
-    )
-
 st.divider()
 st.caption("BGTK · School Assessment Analytics | Hasil bersifat deskriptif dan mengikuti struktur workbook yang diunggah.")
