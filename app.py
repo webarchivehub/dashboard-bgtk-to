@@ -829,7 +829,19 @@ elif page == "Perbandingan TO 1 dan TO 2":
     # Samakan identitas sekolah berdasarkan nama yang sudah dinormalisasi.
     # Perbedaan huruf besar/kecil dan spasi tidak akan membuat sekolah terpisah.
     def school_match_key(value):
-        return re.sub(r"\\s+", " ", str(value).strip()).casefold()
+        """Kunci pencocokan nama sekolah yang tahan beda kapitalisasi/format."""
+        if pd.isna(value):
+            return ""
+        name = unicodedata.normalize("NFKC", str(value))
+        # Hilangkan karakter tak terlihat dan samakan semua jenis spasi.
+        name = name.replace("\\u200b", "").replace("\\ufeff", "").replace("\\xa0", " ")
+        name = re.sub(r"\\s+", " ", name).strip().casefold()
+        # Samakan variasi penulisan SMA swasta: "SMA SWASTA X" = "SMAS X".
+        name = re.sub(r"^sma\\s+swasta\\b", "smas", name)
+        # Tanda baca tidak membedakan identitas sekolah.
+        name = re.sub(r"[^\\w\\s]", " ", name, flags=re.UNICODE)
+        name = re.sub(r"\\s+", " ", name).strip()
+        return name
 
     a = s1.copy()
     b = s2.copy()
