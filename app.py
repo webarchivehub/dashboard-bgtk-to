@@ -1267,11 +1267,24 @@ for col in students_export.columns:
         st.session_state["district_mapping"].to_excel(writer, sheet_name="Pemetaan Sekolah", index=False)
         if not logs.empty:
             logs.to_excel(writer, sheet_name="Status Upload", index=False)
+import io
+
+report = io.BytesIO()
+
+with pd.ExcelWriter(report, engine="openpyxl") as writer:
+    students_export.to_excel(
+        writer,
+        sheet_name="Data Siswa",
+        index=False
+    )
+
+report.seek(0)
+
 st.download_button(
-    "📥 Unduh hasil olahan Excel",
-    report.getvalue(),
-    f"hasil_analisis_{datetime.now():%Y%m%d_%H%M}.xlsx",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    label="📥 Unduh hasil olahan Excel",
+    data=report.getvalue(),
+    file_name=f"hasil_analisis_{datetime.now():%Y%m%d_%H%M}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     key="download_hasil_olahan_excel"
 )
 
