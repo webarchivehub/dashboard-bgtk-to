@@ -830,18 +830,17 @@ elif page == "Perbandingan TO 1 dan TO 2":
     # Samakan identitas sekolah berdasarkan nama yang sudah dinormalisasi.
     # Perbedaan huruf besar/kecil dan spasi tidak akan membuat sekolah terpisah.
     def school_match_key(value):
-        """Kunci pencocokan nama sekolah yang tahan beda kapitalisasi/format."""
+        """Normalisasi nama sekolah agar variasi kapitalisasi/penulisan tergabung."""
         if pd.isna(value):
             return ""
         name = unicodedata.normalize("NFKC", str(value))
-        # Hilangkan karakter tak terlihat dan samakan semua jenis spasi.
-        name = name.replace("\\u200b", "").replace("\\ufeff", "").replace("\\xa0", " ")
-        name = re.sub(r"\\s+", " ", name).strip().casefold()
-        # Samakan variasi penulisan SMA swasta: "SMA SWASTA X" = "SMAS X".
-        name = re.sub(r"^sma\\s+swasta\\b", "smas", name)
-        # Tanda baca tidak membedakan identitas sekolah.
-        name = re.sub(r"[^\\w\\s]", " ", name, flags=re.UNICODE)
-        name = re.sub(r"\\s+", " ", name).strip()
+        name = name.replace("\u200b", "").replace("\ufeff", "").replace("\xa0", " ")
+        name = re.sub(r"\s+", " ", name).strip().casefold()
+        # SMA SWASTA X dan SMAS X dianggap nama sekolah yang sama.
+        name = re.sub(r"^sma\s+swasta\b", "smas", name)
+        # Abaikan tanda baca serta samakan kembali spasi.
+        name = re.sub(r"[^\w\s]", " ", name, flags=re.UNICODE)
+        name = re.sub(r"\s+", " ", name).strip()
         return name
 
     a = s1.copy()
@@ -893,25 +892,44 @@ elif page == "Perbandingan TO 1 dan TO 2":
 
         comp = pd.concat([means_round(a, "TO 1"), means_round(b, "TO 2")], ignore_index=True)
 
-        # Komposit 3 mapel per sekolah dihitung dari rerata sekolah pada masing-masing mapel.
+        # Rata-rata gabungan dihitung dari mapel yang tersedia agar sekolah dengan
+        # data belum lengkap tetap tampil. Jumlah mapel tersedia ditampilkan transparan.
         overall_rounds = []
         for label, frame in [("TO 1", a), ("TO 2", b)]:
             _, _, subject_means = ranking_tables(frame)
-            pivot_round = subject_means.pivot(index="Sekolah", columns="Mata Pelajaran", values="Rata_rata")
-            if all(sub in pivot_round.columns for sub in SUBJECTS):
-                pivot_round = pivot_round.dropna(subset=list(SUBJECTS)).copy()
-                if not pivot_round.empty:
-                    overall_rounds.append(pd.DataFrame({"Sekolah": pivot_round.index,
-                        "Rata-rata 3 Mapel": pivot_round[list(SUBJECTS)].mean(axis=1).values,
-                        "Try Out": label}))
+            if subject_means.empty:
+                continue
+            pivot_round = subject_means.pivot_table(
+                index="Sekolah", columns="Mata Pelajaran", values="Rata_rata", aggfunc="mean"
+            )
+            available_subjects = [sub for sub in SUBJECTS if sub in pivot_round.columns]
+            if available_subjects:
+                values = pivot_round[available_subjects]
+                overall_rounds.append(pd.DataFrame({
+                    "Sekolah": pivot_round.index,
+                    f"Rata-rata {label}": values.mean(axis=1, skipna=True).values,
+                    f"Jumlah mapel {label}": values.notna().sum(axis=1).values,
+                    "Try Out": label
+                }))
         if overall_rounds:
             overall_comp = pd.concat(overall_rounds, ignore_index=True)
-            overall_pivot = overall_comp.pivot(index="Sekolah", columns="Try Out", values="Rata-rata 3 Mapel").reset_index()
-            if "TO 1" not in overall_pivot: overall_pivot["TO 1"] = np.nan
-            if "TO 2" not in overall_pivot: overall_pivot["TO 2"] = np.nan
-            overall_pivot["Perubahan rata-rata 3 mapel"] = overall_pivot["TO 2"] - overall_pivot["TO 1"]
-            st.markdown("### Perbandingan rata-rata gabungan tiga mata pelajaran")
-            show_dataframe(fmt_table(overall_pivot.sort_values("TO 2", ascending=False)), use_container_width=True, hide_index=True)
+            overall_pivot = overall_comp.pivot_table(
+                index="Sekolah", columns="Try Out",
+                values=["Rata-rata TO 1", "Rata-rata TO 2", "Jumlah mapel TO 1", "Jumlah mapel TO 2"],
+                aggfunc="first"
+            )
+            overall_pivot.columns = [f"{metric}" for metric, round_name in overall_pivot.columns]
+            overall_pivot = overall_pivot.reset_index()
+            for col in ["Rata-rata TO 1", "Rata-rata TO 2", "Jumlah mapel TO 1", "Jumlah mapel TO 2"]:
+                if col not in overall_pivot:
+                    overall_pivot[col] = np.nan
+            overall_pivot["Perubahan rata-rata"] = overall_pivot["Rata-rata TO 2"] - overall_pivot["Rata-rata TO 1"]
+            st.markdown("### Perbandingan rata-rata gabungan mata pelajaran")
+            st.caption("Rata-rata dihitung dari mapel yang tersedia pada masing-masing sekolah. Kolom jumlah mapel menunjukkan kelengkapan data (maksimal 3 mapel).")
+            show_dataframe(
+                fmt_table(overall_pivot.sort_values("Rata-rata TO 2", ascending=False, na_position="last")),
+                use_container_width=True, hide_index=True
+            )
 
         piv = comp.pivot_table(index=["Sekolah", "Mata Pelajaran"], columns="Try Out", values="Rata_rata").reset_index()
         if "TO 1" not in piv: piv["TO 1"] = np.nan
