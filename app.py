@@ -1,4 +1,5 @@
 import re
+import unicodedata
 import io
 from io import BytesIO
 import numpy as np
