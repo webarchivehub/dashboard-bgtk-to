@@ -825,13 +825,51 @@ elif page == "Perbandingan TO 1 dan TO 2":
     st.subheader("Perbandingan Hasil TO 1 dan TO 2")
     if district_choice == "Semua Kabupaten/Kota":
         st.caption("Perbandingan seluruh kabupaten/kota. Pilih kabupaten/kota di sidebar untuk mempersempit hasil.")
+
+    # Samakan identitas sekolah berdasarkan nama yang sudah dinormalisasi.
+    # Perbedaan huruf besar/kecil dan spasi tidak akan membuat sekolah terpisah.
+    def school_match_key(value):
+        return re.sub(r"\\s+", " ", str(value).strip()).casefold()
+
     a = s1.copy()
     b = s2.copy()
-    if not a.empty: a["Kabupaten/Kota"] = a["Sekolah"].map(district_lookup).fillna("Belum dipetakan")
-    if not b.empty: b["Kabupaten/Kota"] = b["Sekolah"].map(district_lookup).fillna("Belum dipetakan")
+
+    # Peta nama kanonis: jika sekolah muncul di kedua putaran dengan kapitalisasi
+    # berbeda, gunakan satu nama tampilan yang sama (prioritas nama dari TO 1).
+    all_school_names = pd.concat(
+        [a["Sekolah"], b["Sekolah"]], ignore_index=True
+    ).dropna().astype(str)
+    canonical_school_names = {}
+    for school_name in all_school_names:
+        key = school_match_key(school_name)
+        if key and key not in canonical_school_names:
+            canonical_school_names[key] = clean_school(school_name)
+
+    if not a.empty:
+        a["_school_key"] = a["Sekolah"].map(school_match_key)
+        a["Sekolah"] = a["_school_key"].map(canonical_school_names)
+    if not b.empty:
+        b["_school_key"] = b["Sekolah"].map(school_match_key)
+        b["Sekolah"] = b["_school_key"].map(canonical_school_names)
+
+    # Pemetaan kabupaten/kota juga dicocokkan tanpa membedakan kapitalisasi.
+    district_by_school_key = {
+        school_match_key(school): district
+        for school, district in zip(mapping["Sekolah"], mapping["Kabupaten/Kota"])
+    }
+    if not a.empty:
+        a["Kabupaten/Kota"] = a["Sekolah"].map(
+            lambda name: district_by_school_key.get(school_match_key(name), "Belum dipetakan")
+        )
+    if not b.empty:
+        b["Kabupaten/Kota"] = b["Sekolah"].map(
+            lambda name: district_by_school_key.get(school_match_key(name), "Belum dipetakan")
+        )
+
     if district_choice != "Semua Kabupaten/Kota":
         a = a[a["Kabupaten/Kota"] == district_choice]
         b = b[b["Kabupaten/Kota"] == district_choice]
+
     if a.empty or b.empty:
         st.warning("Untuk membandingkan, unggah data TO 1 dan TO 2 terlebih dahulu.")
     else:
@@ -839,7 +877,9 @@ elif page == "Perbandingan TO 1 dan TO 2":
             x = school_subject_means(df)
             x["Try Out"] = label
             return x
+
         comp = pd.concat([means_round(a, "TO 1"), means_round(b, "TO 2")], ignore_index=True)
+
         # Komposit 3 mapel per sekolah dihitung dari rerata sekolah pada masing-masing mapel.
         overall_rounds = []
         for label, frame in [("TO 1", a), ("TO 2", b)]:
@@ -859,6 +899,7 @@ elif page == "Perbandingan TO 1 dan TO 2":
             overall_pivot["Perubahan rata-rata 3 mapel"] = overall_pivot["TO 2"] - overall_pivot["TO 1"]
             st.markdown("### Perbandingan rata-rata gabungan tiga mata pelajaran")
             show_dataframe(fmt_table(overall_pivot.sort_values("TO 2", ascending=False)), use_container_width=True, hide_index=True)
+
         piv = comp.pivot_table(index=["Sekolah", "Mata Pelajaran"], columns="Try Out", values="Rata_rata").reset_index()
         if "TO 1" not in piv: piv["TO 1"] = np.nan
         if "TO 2" not in piv: piv["TO 2"] = np.nan
