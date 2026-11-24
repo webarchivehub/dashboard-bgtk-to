@@ -964,34 +964,39 @@ elif page == "Perbandingan TO 1 dan TO 2":
                      title=f"Perbandingan {subject}: TO 1 vs TO 2")
         fig.update_layout(xaxis_tickangle=-35)
         st.plotly_chart(fig, use_container_width=True)
-        st.markdown("### Perubahan peringkat sekolah (mapel terpilih)")
-        # Peringkat dihitung terpisah untuk TO 1 dan TO 2 berdasarkan
-        # rata-rata sekolah pada mata pelajaran yang sedang dipilih.
-        # Jika ada nilai rata-rata yang sama, sekolah mendapat peringkat sama.
-        selected_subject = piv[piv["Mata Pelajaran"] == subject].copy()
+        st.markdown("### Perubahan peringkat sekolah (rata-rata 3 mata pelajaran)")
 
-        old = selected_subject[["Sekolah", "TO 1"]].dropna().copy()
-        new = selected_subject[["Sekolah", "TO 2"]].dropna().copy()
+        # Peringkat dihitung dari rata-rata gabungan Bahasa Indonesia,
+        # Bahasa Inggris, dan Matematika untuk masing-masing putaran.
+        def overall_school_ranking(frame, round_label):
+            subject_avg = school_subject_means(frame)
+            if subject_avg.empty:
+                return pd.DataFrame(columns=["Sekolah", f"Peringkat {round_label}"])
 
-        old["Peringkat TO 1"] = old["TO 1"].rank(
-            method="min", ascending=False
-        ).astype("Int64")
-        new["Peringkat TO 2"] = new["TO 2"].rank(
-            method="min", ascending=False
-        ).astype("Int64")
+            wide = subject_avg.pivot_table(
+                index="Sekolah",
+                columns="Mata Pelajaran",
+                values="Rata_rata",
+                aggfunc="mean"
+            )
+            required_subjects = list(SUBJECTS.keys())
+            if not all(subject_name in wide.columns for subject_name in required_subjects):
+                return pd.DataFrame(columns=["Sekolah", f"Peringkat {round_label}"])
 
-        shift = old[["Sekolah", "Peringkat TO 1"]].merge(
-            new[["Sekolah", "Peringkat TO 2"]],
-            on="Sekolah",
-            how="outer"
-        )
-        shift["Perubahan peringkat"] = (
-            shift["Peringkat TO 1"] - shift["Peringkat TO 2"]
-        )
+            wide = wide.dropna(subset=required_subjects).copy()
+            wide["Rata-rata 3 Mapel"] = wide[required_subjects].mean(axis=1)
+            wide = wide.reset_index()
+            wide[f"Peringkat {round_label}"] = (
+                wide["Rata-rata 3 Mapel"].rank(method="min", ascending=False).astype("Int64")
+            )
+            return wide[["Sekolah", f"Peringkat {round_label}"]]
+
+        old_rank = overall_school_ranking(a, "TO 1")
+        new_rank = overall_school_ranking(b, "TO 2")
+        shift = old_rank.merge(new_rank, on="Sekolah", how="outer")
+        shift["Perubahan peringkat"] = shift["Peringkat TO 1"] - shift["Peringkat TO 2"]
         show_dataframe(
-            shift.sort_values(
-                "Peringkat TO 2", na_position="last"
-            ),
+            shift.sort_values("Peringkat TO 2", na_position="last"),
             use_container_width=True,
             hide_index=True
         )
