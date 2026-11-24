@@ -527,6 +527,35 @@ students = pd.concat([s1, s2], ignore_index=True) if not s1.empty or not s2.empt
 indicators = pd.concat([i1, i2], ignore_index=True) if not i1.empty or not i2.empty else pd.DataFrame()
 logs = pd.concat([l1, l2], ignore_index=True) if not l1.empty or not l2.empty else pd.DataFrame()
 
+# Samakan identitas nama sekolah secara global sebelum seluruh tabel dan
+# pemeringkatan dihitung, agar variasi kapitalisasi/penulisan tidak terpecah.
+def canonical_school_key(value):
+    if pd.isna(value):
+        return ""
+    name = unicodedata.normalize("NFKC", str(value))
+    name = name.replace("\\u200b", "").replace("\\ufeff", "").replace("\\xa0", " ")
+    name = re.sub(r"\\s+", " ", name).strip().casefold()
+    name = re.sub(r"^sma\\s+swasta\\b", "smas", name)
+    name = re.sub(r"[^\\w\\s]", " ", name, flags=re.UNICODE)
+    name = re.sub(r"\\s+", " ", name).strip()
+    aliases = {
+        "sma kingdom akademik": "kingdom akademi",
+        "smas kingdom akademi": "kingdom akademi",
+    }
+    return aliases.get(name, name)
+
+if not students.empty:
+    _school_display = {}
+    for _name in students["Sekolah"].dropna().astype(str):
+        _key = canonical_school_key(_name)
+        if _key and _key not in _school_display:
+            _school_display[_key] = clean_school(_name)
+    if "kingdom akademi" in _school_display:
+        _school_display["kingdom akademi"] = "SMAS Kingdom Akademi"
+    students["Sekolah"] = students["Sekolah"].map(
+        lambda value: _school_display.get(canonical_school_key(value), clean_school(value))
+    )
+
 if students.empty:
     st.error("Data siswa belum terbaca. Periksa nama sheet DATA 1_B. INDONESIA, DATA 1_B. INGGRIS, dan DATA 1_MATEMATIKA serta kolom Total score/Nilai.")
     if not logs.empty:
