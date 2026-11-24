@@ -64,6 +64,13 @@ SCHOOL_DISTRICT_ALIASES = {
         "smas tontonunu bombana",
         "smas tontonunu",
     ],
+    # Alias sekolah Kingdom Akademi agar masuk filter Kota Kendari,
+    # meskipun nama sekolah tidak memuat kata "Kendari".
+    "Kota Kendari": [
+        "sma kingdom akademik",
+        "smas kingdom akademi",
+        "kingdom akademi",
+    ],
 }
 ALIASES = {
     "Konawe Kepulauan": ["konawe kepulauan", "konawe kep"],
@@ -841,14 +848,7 @@ elif page == "Perbandingan TO 1 dan TO 2":
         # Abaikan tanda baca serta samakan kembali spasi.
         name = re.sub(r"[^\w\s]", " ", name, flags=re.UNICODE)
         name = re.sub(r"\s+", " ", name).strip()
-        # Alias khusus yang sudah dikonfirmasi pengguna:
-        # "SMA Kingdom akademik" (TO 1) dan
-        # "SMAS Kingdom Akademi" (TO 2) adalah sekolah yang sama.
-        confirmed_aliases = {
-            "sma kingdom akademik": "kingdom akademi",
-            "smas kingdom akademi": "kingdom akademi",
-        }
-        return confirmed_aliases.get(name, name)
+        return name
 
     a = s1.copy()
     b = s2.copy()
@@ -863,10 +863,6 @@ elif page == "Perbandingan TO 1 dan TO 2":
         key = school_match_key(school_name)
         if key and key not in canonical_school_names:
             canonical_school_names[key] = clean_school(school_name)
-
-    # Nama tampilan baku untuk sekolah Kingdom Akademi.
-    if "kingdom akademi" in canonical_school_names:
-        canonical_school_names["kingdom akademi"] = "SMAS Kingdom Akademi"
 
     if not a.empty:
         a["_school_key"] = a["Sekolah"].map(school_match_key)
