@@ -1378,22 +1378,75 @@ elif page == "Rekap Per Kabupaten":
 elif page == "Data Peserta Didik":
     st.subheader("Data Peserta Didik")
     view = selected.copy()
-    c1, c2, c3 = st.columns(3)
-    search = c1.text_input("Cari nama/NIS")
+
+    # Filter khusus halaman Data Peserta Didik.
+    # Data TO 1 dan TO 2 tetap terpisah agar nilainya dapat dibandingkan.
+    c1, c2, c3, c4, c5 = st.columns([1.5, 1.1, 1.0, 1.2, 1.0])
+    search = c1.text_input("Cari nama/NIS", placeholder="Ketik nama atau NIS...")
+
+    subjects_available = [
+        subject for subject in SUBJECTS
+        if subject in view["Mata Pelajaran"].dropna().unique()
+    ]
+    chosen_subject = c2.selectbox(
+        "Filter mata pelajaran",
+        ["Semua mata pelajaran"] + subjects_available,
+        key="student_subject_filter"
+    )
+
+    rounds_available = [
+        round_name for round_name in ["TO 1", "TO 2"]
+        if round_name in view["Try Out"].dropna().unique()
+    ]
+    chosen_round = c3.selectbox(
+        "Filter putaran",
+        ["Semua putaran"] + rounds_available,
+        key="student_round_filter"
+    )
+
     classes = sorted(view["Kelas"].dropna().astype(str).unique())
-    chosen_classes = c2.multiselect("Filter kelas", classes, default=classes)
-    sort = c3.selectbox("Urutan", ["Nilai tertinggi", "Nilai terendah", "Nama A-Z"])
+    chosen_classes = c4.multiselect(
+        "Filter kelas", classes, default=classes, key="student_class_filter"
+    )
+    sort = c5.selectbox(
+        "Urutan", ["Nilai tertinggi", "Nilai terendah", "Nama A-Z"],
+        key="student_sort"
+    )
+
+    if chosen_subject != "Semua mata pelajaran":
+        view = view[view["Mata Pelajaran"] == chosen_subject]
+    if chosen_round != "Semua putaran":
+        view = view[view["Try Out"] == chosen_round]
     view = view[view["Kelas"].astype(str).isin(chosen_classes)]
-    if search:
-        mask = view["Nama Siswa"].astype(str).str.contains(search, case=False, na=False)
-        mask |= view["NIS"].astype(str).str.contains(search, case=False, na=False)
+
+    if search.strip():
+        query = search.strip()
+        mask = view["Nama Siswa"].astype(str).str.contains(
+            re.escape(query), case=False, na=False
+        )
+        mask |= view["NIS"].astype(str).str.contains(
+            re.escape(query), case=False, na=False
+        )
         view = view[mask]
-    view = view.sort_values("Nama Siswa" if sort == "Nama A-Z" else "Nilai",
-                            ascending=(sort == "Nilai terendah" if sort != "Nama A-Z" else True))
-    cols = ["Try Out", "Kabupaten/Kota", "Sekolah", "Mata Pelajaran", "Nama Siswa", "NIS", "Kelas", "Nilai"]
+
+    view = view.sort_values(
+        "Nama Siswa" if sort == "Nama A-Z" else "Nilai",
+        ascending=(sort == "Nilai terendah" if sort != "Nama A-Z" else True)
+    )
+
+    cols = [
+        "Try Out", "Kabupaten/Kota", "Sekolah", "Mata Pelajaran",
+        "Nama Siswa", "NIS", "Kelas", "Nilai"
+    ]
+    st.caption(
+        f"Jumlah data ditemukan: {len(view):,} baris. "
+        "Data TO 1 dan TO 2 tetap ditampilkan terpisah agar nilainya dapat dibandingkan."
+    )
     show_dataframe(view[cols], use_container_width=True, hide_index=True, height=520)
-    st.download_button("Unduh CSV", view[cols].to_csv(index=False).encode("utf-8-sig"),
-                       "data_peserta.csv", "text/csv")
+    st.download_button(
+        "Unduh CSV", view[cols].to_csv(index=False).encode("utf-8-sig"),
+        "data_peserta.csv", "text/csv"
+    )
 
 elif page == "Manajemen & Eksplorasi Data":
     st.subheader("Manajemen & Status Pemrosesan")
