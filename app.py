@@ -606,6 +606,28 @@ with st.sidebar:
 
 district_lookup = dict(zip(mapping["Sekolah"], mapping["Kabupaten/Kota"]))
 students["Kabupaten/Kota"] = students["Sekolah"].map(district_lookup).fillna("Belum dipetakan")
+
+def normalize_student_identity(value):
+    """Normalisasi identitas agar beda kapitalisasi/spasi tidak dihitung sebagai siswa berbeda."""
+    if pd.isna(value):
+        return ""
+    value = unicodedata.normalize("NFKC", str(value))
+    value = value.replace("\\u200b", "").replace("\\ufeff", "").replace("\\xa0", " ")
+    return re.sub(r"\\s+", " ", value).strip().casefold()
+
+# Kunci siswa unik: nama + NIS + sekolah + kelas.
+# Kunci ini tidak memasukkan mata pelajaran atau putaran TO, sehingga siswa
+# yang sama pada 3 mapel dan TO 1/TO 2 hanya dihitung satu kali di dashboard.
+students["_ID Peserta Unik"] = students.apply(
+    lambda row: "||".join([
+        normalize_student_identity(row.get("Nama Siswa")),
+        normalize_student_identity(row.get("NIS")),
+        normalize_student_identity(row.get("Sekolah")),
+        normalize_student_identity(row.get("Kelas")),
+    ]),
+    axis=1,
+)
+
 if not indicators.empty:
     indicators["Kabupaten/Kota"] = indicators["Sekolah"].map(district_lookup).fillna("Belum dipetakan")
 
@@ -629,10 +651,13 @@ if page == "Dashboard Utama":
         overall, subject_rankings, means = ranking_tables(selected)
         c1, c2, c3, c4 = st.columns(4)
         with c1: metric_card("Sekolah terpilih", f"{selected['Sekolah'].nunique():,}", "Sekolah dalam filter aktif")
-        with c2: metric_card("Jumlah peserta", f"{len(selected):,}", "Baris nilai valid")
+        with c2: metric_card("Jumlah peserta", f"{selected['_ID Peserta Unik'].nunique():,}", "Siswa unik (nama, NIS, sekolah, kelas)")
         with c3: metric_card("Rata-rata nilai", f"{selected['Nilai'].mean():.2f}", "Skala mengikuti file sumber")
         with c4: metric_card("Mata pelajaran", f"{selected['Mata Pelajaran'].nunique()}", "Mapel terdeteksi")
-        subject_summary = selected.groupby("Mata Pelajaran", as_index=False).agg(Rata_rata=("Nilai", "mean"), Jumlah_peserta=("Nilai", "count"))
+        subject_summary = selected.groupby("Mata Pelajaran", as_index=False).agg(
+            Rata_rata=("Nilai", "mean"),
+            Jumlah_peserta=("_ID Peserta Unik", "nunique")
+        )
         left, right = st.columns([1.4, 1])
         with left:
             fig = px.bar(subject_summary, x="Mata Pelajaran", y="Rata_rata", color="Mata Pelajaran", text=subject_summary["Rata_rata"].map(lambda v:f"{v:.2f}"), color_discrete_map=COLORS, title="Rata-rata nilai per mata pelajaran")
@@ -1105,7 +1130,7 @@ elif page == "Rekap Per Kabupaten":
             district_data.groupby("Kabupaten/Kota", as_index=False)
             .agg(
                 Jumlah_sekolah=("Sekolah", "nunique"),
-                Jumlah_peserta=("Nilai", "count"),
+                Jumlah_peserta=("_ID Peserta Unik", "nunique"),
                 Rata_rata_nilai=("Nilai", "mean"),
                 Median_nilai=("Nilai", "median"),
                 Nilai_tertinggi=("Nilai", "max"),
@@ -1131,7 +1156,7 @@ elif page == "Rekap Per Kabupaten":
         with c:
             metric_card(
                 "Jumlah peserta",
-                f"{len(district_data):,}"
+                f"{district_data['_ID Peserta Unik'].nunique():,}"
             )
 
         with d:
