@@ -965,13 +965,36 @@ elif page == "Perbandingan TO 1 dan TO 2":
         fig.update_layout(xaxis_tickangle=-35)
         st.plotly_chart(fig, use_container_width=True)
         st.markdown("### Perubahan peringkat sekolah (mapel terpilih)")
-        old = piv[piv["Mata Pelajaran"] == subject][["Sekolah", "TO 1"]].dropna().sort_values("TO 1", ascending=False)
-        new = piv[piv["Mata Pelajaran"] == subject][["Sekolah", "TO 2"]].dropna().sort_values("TO 2", ascending=False)
-        old["Peringkat TO 1"] = range(1, len(old) + 1)
-        new["Peringkat TO 2"] = range(1, len(new) + 1)
-        shift = old[["Sekolah", "Peringkat TO 1"]].merge(new[["Sekolah", "Peringkat TO 2"]], on="Sekolah", how="outer")
-        shift["Perubahan peringkat"] = shift["Peringkat TO 1"] - shift["Peringkat TO 2"]
-        show_dataframe(shift.sort_values("Peringkat TO 2"), use_container_width=True, hide_index=True)
+        # Peringkat dihitung terpisah untuk TO 1 dan TO 2 berdasarkan
+        # rata-rata sekolah pada mata pelajaran yang sedang dipilih.
+        # Jika ada nilai rata-rata yang sama, sekolah mendapat peringkat sama.
+        selected_subject = piv[piv["Mata Pelajaran"] == subject].copy()
+
+        old = selected_subject[["Sekolah", "TO 1"]].dropna().copy()
+        new = selected_subject[["Sekolah", "TO 2"]].dropna().copy()
+
+        old["Peringkat TO 1"] = old["TO 1"].rank(
+            method="min", ascending=False
+        ).astype("Int64")
+        new["Peringkat TO 2"] = new["TO 2"].rank(
+            method="min", ascending=False
+        ).astype("Int64")
+
+        shift = old[["Sekolah", "Peringkat TO 1"]].merge(
+            new[["Sekolah", "Peringkat TO 2"]],
+            on="Sekolah",
+            how="outer"
+        )
+        shift["Perubahan peringkat"] = (
+            shift["Peringkat TO 1"] - shift["Peringkat TO 2"]
+        )
+        show_dataframe(
+            shift.sort_values(
+                "Peringkat TO 2", na_position="last"
+            ),
+            use_container_width=True,
+            hide_index=True
+        )
 
 elif page == "Analisis Indikator":
     st.subheader("Analisis Ketercapaian Indikator")
