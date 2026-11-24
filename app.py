@@ -848,7 +848,13 @@ elif page == "Perbandingan TO 1 dan TO 2":
         # Abaikan tanda baca serta samakan kembali spasi.
         name = re.sub(r"[^\w\s]", " ", name, flags=re.UNICODE)
         name = re.sub(r"\s+", " ", name).strip()
-        return name
+        # Dua variasi nama ini adalah sekolah yang sama.
+        # TO 1: SMA Kingdom akademik; TO 2: SMAS Kingdom Akademi.
+        kingdom_aliases = {
+            "sma kingdom akademik": "kingdom akademi",
+            "smas kingdom akademi": "kingdom akademi",
+        }
+        return kingdom_aliases.get(name, name)
 
     a = s1.copy()
     b = s2.copy()
@@ -863,6 +869,10 @@ elif page == "Perbandingan TO 1 dan TO 2":
         key = school_match_key(school_name)
         if key and key not in canonical_school_names:
             canonical_school_names[key] = clean_school(school_name)
+
+    # Gunakan satu nama tampilan untuk kedua variasi Kingdom Akademi.
+    if "kingdom akademi" in canonical_school_names:
+        canonical_school_names["kingdom akademi"] = "SMAS Kingdom Akademi"
 
     if not a.empty:
         a["_school_key"] = a["Sekolah"].map(school_match_key)
