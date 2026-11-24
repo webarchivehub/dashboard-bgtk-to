@@ -533,11 +533,11 @@ def canonical_school_key(value):
     if pd.isna(value):
         return ""
     name = unicodedata.normalize("NFKC", str(value))
-    name = name.replace("\\u200b", "").replace("\\ufeff", "").replace("\\xa0", " ")
-    name = re.sub(r"\\s+", " ", name).strip().casefold()
-    name = re.sub(r"^sma\\s+swasta\\b", "smas", name)
-    name = re.sub(r"[^\\w\\s]", " ", name, flags=re.UNICODE)
-    name = re.sub(r"\\s+", " ", name).strip()
+    name = name.replace("\u200b", "").replace("\ufeff", "").replace("\xa0", " ")
+    name = re.sub(r"\s+", " ", name).strip().casefold()
+    name = re.sub(r"^sma\s+swasta\b", "smas", name)
+    name = re.sub(r"[^\w\s]", " ", name, flags=re.UNICODE)
+    name = re.sub(r"\s+", " ", name).strip()
     aliases = {
         "sma kingdom akademik": "kingdom akademi",
         "smas kingdom akademi": "kingdom akademi",
